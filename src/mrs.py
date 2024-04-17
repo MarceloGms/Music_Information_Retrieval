@@ -1,9 +1,3 @@
-"""
-Created on Tue Apr  6 13:03:06 2021
-
-@author: rpp
-"""
-
 import librosa #https://librosa.org/    #sudo apt-get install -y ffmpeg (open mp3 files)
 import librosa.display
 import librosa.beat
@@ -12,57 +6,92 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+from scipy.stats import skew, kurtosis
 
 audio_folder = "../MER_audio_taffc_dataset/songs"
 
-# Função para extrair todas as features necessárias de um arquivo de áudio
-def extract_features():
+# 2.1.1
+def extract_features(file_path):        
+    y, sr = librosa.load(file_path)
+    
+    # features espectrais
+    mfcc = librosa.feature.mfcc(y=y,n_mfcc=13)
+    mfcc = calculate_stats(mfcc,1).flatten()
+    
+    spectral_centroid = librosa.feature.spectral_centroid(y=y)
+    spectral_centroid = calculate_stats(spectral_centroid,1).flatten()
+    
+    spectral_bandwidth = librosa.feature.spectral_bandwidth(y=y)
+    spectral_bandwidth = calculate_stats(spectral_bandwidth,1).flatten()
+    
+    spectral_contrast = librosa.feature.spectral_contrast(y=y)
+    spectral_contrast = calculate_stats(spectral_contrast,1).flatten()
+    
+    spectral_flatness = librosa.feature.spectral_flatness(y=y)
+    spectral_flatness = calculate_stats(spectral_flatness,1).flatten()
+    
+    spectral_rolloff = librosa.feature.spectral_rolloff(y=y)
+    spectral_rolloff = calculate_stats(spectral_rolloff,1).flatten()
+    
+    # features temporais
+    f0 = librosa.yin(y=y, fmin=20, fmax=11025)[0]
+    f0 = calculate_stats(f0).flatten()
+    
+    rms = librosa.feature.rms(y=y)
+    rms = calculate_stats(rms,1).flatten()
+    
+    zero_crossing_rate = librosa.feature.zero_crossing_rate(y=y)
+    zero_crossing_rate = calculate_stats(zero_crossing_rate,1).flatten()
+    
+    # outras features
+    tempo = librosa.feature.rhythm.tempo(y=y)
+    
+    features = np.concatenate([mfcc, spectral_centroid, spectral_bandwidth, spectral_contrast, spectral_flatness, spectral_rolloff, f0, rms, zero_crossing_rate, tempo])
+    
+    return features
+
+# 2.1.2
+def calculate_stats(features, axis = None):
+    mean = np.mean(features, axis = axis)
+    std = np.std(features, axis = axis)
+    skewness = skew(features, axis = axis)
+    kurt = kurtosis(features, axis = axis)
+    median = np.median(features, axis = axis)
+    max_val = np.max(features,axis = axis)
+    min_val = np.min(features, axis = axis)
+
+    return np.array([mean, std, skewness, kurt, median, max_val, min_val])
+
+# 2.1.3
+def normalize_feats(features):
+    min_values = np.min(features, axis = 0)
+    max_values = np.max(features, axis = 0)
+    normalized_features = (features - min_values) / (max_values - min_values)
+    normalized_features = np.vstack((max_values, normalized_features))
+    normalized_features = np.vstack((min_values, normalized_features))
+    
+    return normalized_features
+
+# 2.1
+def features():
+    all_feats = []
     for file_name in os.listdir(audio_folder):
         if os.path.isfile(os.path.join(audio_folder, file_name)):
             file_path = os.path.join(audio_folder, file_name)
+            # 2.1.1
+            feats = extract_features(file_path)
+            all_feats.append(feats)
             
-            features = []
-            
-            filey = librosa.load(file_path)
-            features.append(librosa.feature.mfcc(filey))
-            features.append(librosa.feature.spectral_centroid(filey))
-            features.append(librosa.feature.spectral_bandwidth(filey))
-            features.append(librosa.feature.spectral_contrast(filey))
-            features.append(librosa.feature.spectral_flatness(filey))
-            features.append(librosa.feature.spectral_rolloff(filey))
-            features.append(librosa.feature.yin(filey))
-            features.append(librosa.feature.rms(filey))
-            features.append(librosa.feature.zero_crossing_rate(filey))
-            features.append(librosa.beat.tempo(filey))
-            
-            print(features)
-
-
+    # 2.1.4
+    np.savetxt('../out/feats.csv', all_feats, delimiter=',', fmt="%.6f")
+    # 2.1.3
+    norm_feats = normalize_feats(all_feats)
+    np.savetxt('../out/norm_feats.csv', norm_feats, delimiter=',', fmt="%.6f")
+    
+    return np.asarray(all_feats), np.asarray(norm_feats)
+    
 if __name__ == "__main__":
     plt.close('all')
-    extract_features()
-    
-    #--- Load file
-    '''fName = "Queries/MT0000414517.mp3"    
-    sr = 22050
-    mono = True
-    warnings.filterwarnings("ignore")
-    y, fs = librosa.load(fName, sr=sr, mono = mono)
-    print(y.shape)
-    print(fs)
-    
-    #--- Play Sound
-    #sd.play(y, sr, blocking=False)
-    
-    #--- Plot sound waveform
-    plt.figure()
-    librosa.display.waveshow(y)
-    
-    #--- Plot spectrogram
-    Y = np.abs(librosa.stft(y))
-    Ydb = librosa.amplitude_to_db(Y, ref=np.max)
-    fig, ax = plt.subplots()
-    img = librosa.display.specshow(Ydb, y_axis='linear', x_axis='time', ax=ax)
-    ax.set_title('Power spectrogram')
-    fig.colorbar(img, ax=ax, format="%+2.0f dB")'''
+    # 2.1
+    not_norm_feats, norm_feats = features()
     
