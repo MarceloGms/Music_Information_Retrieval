@@ -82,10 +82,10 @@ def features():
             feats = extract_features(file_path)
             all_feats.append(feats)
             
-    # 2.1.4
-    np.savetxt('../out/feats.csv', all_feats, delimiter=',', fmt="%.6f")
     # 2.1.3
     norm_feats = normalize_feats(all_feats)
+    # 2.1.4
+    np.savetxt('../out/feats.csv', all_feats, delimiter=',', fmt="%.6f")
     np.savetxt('../out/norm_feats.csv', norm_feats, delimiter=',', fmt="%.6f")
     
     return np.asarray(all_feats), np.asarray(norm_feats)
