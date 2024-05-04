@@ -100,22 +100,26 @@ def normalize_feats(features):
 # 2.1
 def features():
     all_feats = []
-    count = 0
+    counter = 0
+    allCentroids=np.zeros((900,2))
     for file_name in os.listdir(audio_folder):
         if os.path.isfile(os.path.join(audio_folder, file_name)):
             file_path = os.path.join(audio_folder, file_name)
             # 2.1.1
             feats = extract_features(file_path)
             all_feats.append(feats)
-            #manualCentroid(file_path)
+            # 2.2.1
+            allCentroids[counter]=manualCentroid(file_path)
+            counter+=1
             
     all_feats = np.vstack(all_feats)
-    #calculateManualCentroids()
     # 2.1.3
     norm_feats = normalize_feats(all_feats)
     # 2.1.4
     np.savetxt('../out/feats.csv', all_feats, delimiter=',', fmt="%.6f")
     np.savetxt('../out/norm_feats.csv', norm_feats, delimiter=',', fmt="%.6f")
+    # 2.2.3
+    np.savetxt("../out/allCentroids.csv", allCentroids, delimiter=",", fmt="%f")
     
     return np.asarray(all_feats), np.asarray(norm_feats)
 
@@ -131,6 +135,7 @@ def cosine_distance(x, y):
     norm_y = np.linalg.norm(y)
     return 1.0 - (dot_product / (norm_x * norm_y))
 
+# 2.2.1
 def manualCentroid(filename):
     sr = 22050
     mono = True
@@ -161,17 +166,6 @@ def manualCentroid(filename):
     # print("Pearson Correlation: ",np.corrcoef(librosa_sc,sc)[0][1])
     # print("RMSE: ",np.sqrt(np.mean((librosa_sc-sc)**2)))
     return np.corrcoef(librosa_sc,sc)[0][1], np.sqrt(np.mean((librosa_sc-sc)**2))
-
-def calculateManualCentroids():
-    counter = 0
-    allCentroids=np.zeros((900,2))
-    for filename in os.listdir(audio_folder):    
-        if filename.endswith(".mp3"):
-            allCentroids[counter]=manualCentroid(f"{audio_folder}/{filename}")
-        # print(counter)
-        counter+=1
-    #save csv de all Centroids
-    np.savetxt("../out/allCentroids.csv", allCentroids, delimiter=",", fmt="%f")#fmt=%f
 
 #3.1
 def distances(norm_feats):
