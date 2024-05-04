@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import os
 from scipy.stats import skew, kurtosis
 import numpy.fft
+from scipy.spatial import distance
 
 audio_folder = "../MER_audio_taffc_dataset/songs"
 
@@ -35,7 +36,7 @@ def extract_features(file_path):
     spectral_rolloff = calculate_stats(spectral_rolloff,1).flatten()
     
     # features temporais
-    f0 = librosa.yin(y=y, fmin=20, fmax=sr/2)[0]
+    f0 = librosa.yin(y=y, fmin=20, fmax=sr/2)
     f0[f0==sr/2]=0
     f0 = calculate_stats(f0).flatten()    
     
@@ -48,12 +49,23 @@ def extract_features(file_path):
     # outras features
     tempo = librosa.feature.rhythm.tempo(y=y)
     
-    features = np.concatenate([mfcc, spectral_centroid, spectral_bandwidth, spectral_contrast, spectral_flatness, spectral_rolloff, f0, rms, zero_crossing_rate, tempo])
+    features = np.concatenate([
+        mfcc, 
+        spectral_centroid, 
+        spectral_bandwidth, 
+        spectral_contrast, 
+        spectral_flatness, 
+        spectral_rolloff, 
+        f0, 
+        rms, 
+        zero_crossing_rate, 
+        tempo
+    ])
     
     return features
 
 # 2.1.2
-def calculate_stats(features, axis = None):
+def calculate_stats(features, axis = 0):
     mean = np.mean(features, axis = axis)
     std = np.std(features, axis = axis)
     skewness = skew(features, axis = axis)
@@ -65,17 +77,25 @@ def calculate_stats(features, axis = None):
     return np.array([mean, std, skewness, kurt, median, max_val, min_val])
 
 # 2.1.3
-def normalize_feats(features, min_values=None, max_values=None):
-    if min_values is None:
-        min_values = np.min(features, axis = 0)
-    if max_values is None:
-        max_values = np.max(features, axis = 0)
-        normalized_features = (features - min_values) / (max_values - min_values)
-    if min_values is None or max_values is None:
-        normalized_features = np.vstack((max_values, normalized_features))
-        normalized_features = np.vstack((min_values, normalized_features))
+def normalize_feats(features):
+    features = np.array(features)
+    min_values = np.min(features, axis=0)
+    max_values = np.max(features, axis=0)
     
-    return normalized_features, min_values, max_values
+    # Find features where min and max are equal and set them to zero
+    zero_mask = min_values == max_values
+    
+    normalized_features = np.where(zero_mask, 0, features)
+    
+    # Normalize non-zero features
+    for i in range(len(features[0])):
+        if not zero_mask[i]:
+            normalized_features[:, i] = (features[:, i] - min_values[i]) / (max_values[i] - min_values[i])
+            
+    normalized_features = np.vstack((max_values, normalized_features))
+    normalized_features = np.vstack((min_values, normalized_features))
+    
+    return normalized_features
 
 # 2.1
 def features():
@@ -87,16 +107,17 @@ def features():
             # 2.1.1
             feats = extract_features(file_path)
             all_feats.append(feats)
-            manualCentroid(file_path)
+            #manualCentroid(file_path)
             
-    calculateManualCentroids()
+    all_feats = np.vstack(all_feats)
+    #calculateManualCentroids()
     # 2.1.3
-    norm_feats, min_vals, max_vals = normalize_feats(all_feats)
+    norm_feats = normalize_feats(all_feats)
     # 2.1.4
-    np.savetxt('../out/feats1.csv', all_feats, delimiter=',', fmt="%.6f")
-    np.savetxt('../out/norm_feats1.csv', norm_feats, delimiter=',', fmt="%.6f")
+    np.savetxt('../out/feats.csv', all_feats, delimiter=',', fmt="%.6f")
+    np.savetxt('../out/norm_feats.csv', norm_feats, delimiter=',', fmt="%.6f")
     
-    return np.asarray(all_feats), np.asarray(norm_feats), min_vals, max_vals
+    return np.asarray(all_feats), np.asarray(norm_feats)
 
 def euclidean_distance(x, y):
     return np.sqrt(np.sum((x - y) ** 2))
@@ -150,33 +171,42 @@ def calculateManualCentroids():
         # print(counter)
         counter+=1
     #save csv de all Centroids
-    np.savetxt("allCentroids.csv", allCentroids, delimiter=",", fmt="%f")#fmt=%f
+    np.savetxt("../out/allCentroids.csv", allCentroids, delimiter=",", fmt="%f")#fmt=%f
 
-# 3
-def similarity_metrics(all_feats, min_vals, max_vals):
-    query = "../Queries\MT0000414517.mp3"
-    feats = extract_features(query)
-    query_feats = normalize_feats(feats, min_vals, max_vals)
-    print(query_feats)
-    '''
-    similarity_matrices = {}
-    for metric in ['euclidean', 'manhattan', 'cosine']:
-        similarity_matrix = np.zeros((len(all_feats), len(all_feats)))
-        for i, feat1 in enumerate(all_feats):
-            for j, feat2 in enumerate(all_feats):  # Iterate over all_feats for both feat1 and feat2
-                if metric == 'euclidean':
-                    similarity_matrix[i, j] = euclidean_distance(feat1, feat2)  # Calculate similarity between feat1 and feat2
-                elif metric == 'manhattan':
-                    similarity_matrix[i, j] = manhattan_distance(feat1, feat2)
-                elif metric == 'cosine':
-                    similarity_matrix[i, j] = cosine_distance(feat1, feat2)
-        similarity_matrices[metric] = similarity_matrix  # Store similarity matrix for the current metric
-    return similarity_matrices
-'''
+#3.1
+def distances(norm_feats):
+    euclidean = np.zeros(900)
+    manhattan = np.zeros(900)
+    cos = np.zeros(900)
+    # calculate features from query
+    for file_name in os.listdir("../Queries"):
+        if os.path.isfile(os.path.join("../Queries", file_name)):
+            file_path = os.path.join("../Queries", file_name)
+            query_features = extract_features(file_path)
+            # normalize query features
+            query_features = normalize_feats(query_features)
+            # calculate distances
+            for i in range(900):
+                euclidean[i] = distance.euclidean(norm_feats[i+2], query_features)
+                manhattan[i] = distance.cityblock(norm_feats[i+2], query_features)
+                cos[i] = distance.cosine(norm_feats[i+2], query_features)
+            # save distances
+            np.savetxt('../out/euclidean.csv', euclidean, delimiter=',', fmt="%.6f")
+            np.savetxt('../out/manhattan.csv', manhattan, delimiter=',', fmt="%.6f")
+            np.savetxt('../out/cosine.csv', cos, delimiter=',', fmt="%.6f")
+
+            #get 10 best results, save the indexes
+            euclidean_best = np.argsort(euclidean)[:10]
+            manhattan_best = np.argsort(manhattan)[:10]
+            cos_best = np.argsort(cos)[:10]
+            return euclidean_best, manhattan_best, cos_best
     
 if __name__ == "__main__":
     plt.close('all')
     # 2.1
-    not_norm_feats, norm_feats, min_values, max_values = features()
+    not_norm_feats, norm_feats = features()
     # 3
-    similarity_metrics(norm_feats, min_values, max_values)
+    '''
+    norm_feats = np.loadtxt('../assets/validação de resultados_TP2/FM_All.csv', delimiter=',')
+    print(norm_feats)
+    distances(norm_feats)'''
