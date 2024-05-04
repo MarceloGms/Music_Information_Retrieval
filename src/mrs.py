@@ -140,11 +140,10 @@ def manualCentroid(filename):
     sr = 22050
     mono = True
     warnings.filterwarnings("ignore")
-    filePath = os.path.join(filename)
     y, fs = librosa.load(filename, sr=sr, mono = mono)
     n_fft = 2048
     hop_length = 512
-    sc = np.zeros((len(y)-n_fft+1)//hop_length +1) #fazer (tamanho do array//hop - 3) em vez disto (é mais correto I guess idk)
+    sc = np.zeros((len(y)-n_fft+1)//hop_length +1)
     counter= 0
     df=sr/n_fft
     #freq=0,10,20,30,...
@@ -153,7 +152,7 @@ def manualCentroid(filename):
     yw = np.hanning(n_fft)
     for i in range(0, len(y) - n_fft + 1, hop_length):
         #FFT
-        yf = np.fft.rfft(y[i:i+n_fft]*yw)#usar rfft
+        yf = np.fft.rfft(y[i:i+n_fft]*yw)
         #Espectro de potencia
         magnitudes = np.abs(yf)
         #SC
@@ -163,8 +162,7 @@ def manualCentroid(filename):
             sc[counter]=(np.sum(magnitudes*freqs)/np.sum(magnitudes))# se denominador for 0 centroid=0
         counter+=1
     librosa_sc=librosa.feature.spectral_centroid(y = y)[0][2:len(sc)+2]
-    # print("Pearson Correlation: ",np.corrcoef(librosa_sc,sc)[0][1])
-    # print("RMSE: ",np.sqrt(np.mean((librosa_sc-sc)**2)))
+
     return np.corrcoef(librosa_sc,sc)[0][1], np.sqrt(np.mean((librosa_sc-sc)**2))
 
 #3.1
