@@ -185,9 +185,12 @@ def calc_similarity(norm_feats):
     for file_name in os.listdir("../Queries"):
         if os.path.isfile(os.path.join("../Queries", file_name)):
             file_path = os.path.join("../Queries", file_name)
+            
             # 3.2.1 extrair e normalizar features da query
             query_features = extract_features(file_path)
+            np.savetxt('../out/query.csv', query_features, delimiter=',', fmt="%.6f", newline=",")
             query_features = normalize_query(query_features, norm_feats[:2])
+            np.savetxt('../out/norm_query.csv', np.vstack((norm_feats[:2], query_features)), delimiter=',', fmt="%.6f")
             
             # 3.2.2 calcular e guardar as distancias
             for i in range(900):
@@ -200,9 +203,9 @@ def calc_similarity(norm_feats):
             np.savetxt('../out/cosine.csv', cosine, delimiter=',', fmt="%.6f")
 
             # 3.3 criar e guardar os rankings de similaridade
-            euclidean_ranking = np.argsort(euclidean)[:10]
-            manhattan_ranking = np.argsort(manhattan)[:10]
-            cosine_ranking = np.argsort(cosine)[:10]
+            euclidean_ranking = np.sort(euclidean)[:10]
+            manhattan_ranking = np.sort(manhattan)[:10]
+            cosine_ranking = np.sort(cosine)[:10]
             
             with open('../out/rankings.txt', 'w') as f:
                 f.write(f"Ranking: Euclidean-------------\n{euclidean_ranking}\n\n")
@@ -214,5 +217,5 @@ if __name__ == "__main__":
     # 2.1
     not_norm_feats, norm_feats = features()
     # 3
-    #norm_feats = np.loadtxt('../assets/validação de resultados_TP2/FM_All.csv', delimiter=',')
+    #norm_feats = np.loadtxt('../out/norm_feats.csv', delimiter=',')
     calc_similarity(norm_feats)
