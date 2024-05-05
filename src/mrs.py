@@ -82,12 +82,11 @@ def normalize_feats(features):
     min_values = np.min(features, axis=0)
     max_values = np.max(features, axis=0)
     
-    # Find features where min and max are equal and set them to zero
+    # Features onde min == max vao ser 0
     zero_mask = min_values == max_values
     
     normalized_features = np.where(zero_mask, 0, features)
     
-    # Normalize non-zero features
     for i in range(len(features[0])):
         if not zero_mask[i]:
             normalized_features[:, i] = (features[:, i] - min_values[i]) / (max_values[i] - min_values[i])
@@ -101,7 +100,7 @@ def normalize_feats(features):
 def features():
     all_feats = []
     counter = 0
-    allCentroids=np.zeros((900,2))
+    all_centroids=np.zeros((900,2))
     for file_name in os.listdir(audio_folder):
         if os.path.isfile(os.path.join(audio_folder, file_name)):
             file_path = os.path.join(audio_folder, file_name)
@@ -109,7 +108,7 @@ def features():
             feats = extract_features(file_path)
             all_feats.append(feats)
             # 2.2.1
-            allCentroids[counter]=manualCentroid(file_path)
+            all_centroids[counter]=manual_centroid(file_path)
             counter+=1
             
     all_feats = np.vstack(all_feats)
@@ -119,31 +118,19 @@ def features():
     np.savetxt('../out/feats.csv', all_feats, delimiter=',', fmt="%.6f")
     np.savetxt('../out/norm_feats.csv', norm_feats, delimiter=',', fmt="%.6f")
     # 2.2.3
-    np.savetxt("../out/allCentroids.csv", allCentroids, delimiter=",", fmt="%f")
+    np.savetxt("../out/allCentroids.csv", all_centroids, delimiter=",", fmt="%f")
     
     return np.asarray(all_feats), np.asarray(norm_feats)
 
-def euclidean_distance(x, y):
-    return np.sqrt(np.sum((x - y) ** 2))
-
-def manhattan_distance(x, y):
-    return np.sum(np.abs(x - y))
-
-def cosine_distance(x, y):
-    dot_product = np.dot(x, y)
-    norm_x = np.linalg.norm(x)
-    norm_y = np.linalg.norm(y)
-    return 1.0 - (dot_product / (norm_x * norm_y))
-
 # 2.2.1
-def manualCentroid(filename):
+def manual_centroid(filename):
     sr = 22050
     mono = True
     warnings.filterwarnings("ignore")
-    y, fs = librosa.load(filename, sr=sr, mono = mono)
+    y, fs = librosa.load(filename, sr = sr, mono = mono)
     n_fft = 2048
     hop_length = 512
-    sc = np.zeros((len(y)-n_fft+1)//hop_length +1)
+    sc = np.zeros((len(y)-n_fft+1)//hop_length + 1)
     counter= 0
     df=sr/n_fft
     #freq=0,10,20,30,...
@@ -165,40 +152,67 @@ def manualCentroid(filename):
 
     return np.corrcoef(librosa_sc,sc)[0][1], np.sqrt(np.mean((librosa_sc-sc)**2))
 
+# 3.1.1
+def euclidean_distance(x, y):
+    return np.sqrt(np.sum((x - y) ** 2))
+
+# 3.1.2
+def manhattan_distance(x, y):
+    return np.sum(np.abs(x - y))
+
+# 3.1.3
+def cosine_distance(x, y):
+    dot_product = np.dot(x, y)
+    norm_x = np.linalg.norm(x)
+    norm_y = np.linalg.norm(y)
+    return 1.0 - (dot_product / (norm_x * norm_y))
+
+def normalize_query(query, min_max):
+    normalized_query = np.zeros(190)
+    for i in range(190):
+        if min_max[1][i] == min_max[0][i]:
+            normalized_query[i] = 0
+        else:
+            normalized_query[i] = (query[i] - min_max[0][i]) / (min_max[1][i] - min_max[0][i])
+    return normalized_query
+
 #3.1
-def distances(norm_feats):
+def calc_similarity(norm_feats):
     euclidean = np.zeros(900)
     manhattan = np.zeros(900)
-    cos = np.zeros(900)
-    # calculate features from query
+    cosine = np.zeros(900)
+    
     for file_name in os.listdir("../Queries"):
         if os.path.isfile(os.path.join("../Queries", file_name)):
             file_path = os.path.join("../Queries", file_name)
+            # 3.2.1 extrair e normalizar features da query
             query_features = extract_features(file_path)
-            # normalize query features
-            query_features = normalize_feats(query_features)
-            # calculate distances
+            query_features = normalize_query(query_features, norm_feats[:2])
+            
+            # 3.2.2 calcular e guardar as distancias
             for i in range(900):
-                euclidean[i] = distance.euclidean(norm_feats[i+2], query_features)
-                manhattan[i] = distance.cityblock(norm_feats[i+2], query_features)
-                cos[i] = distance.cosine(norm_feats[i+2], query_features)
-            # save distances
+                euclidean[i] = euclidean_distance(norm_feats[i+2], query_features)
+                manhattan[i] = manhattan_distance(norm_feats[i+2], query_features)
+                cosine[i] = cosine_distance(norm_feats[i+2], query_features)
+
             np.savetxt('../out/euclidean.csv', euclidean, delimiter=',', fmt="%.6f")
             np.savetxt('../out/manhattan.csv', manhattan, delimiter=',', fmt="%.6f")
-            np.savetxt('../out/cosine.csv', cos, delimiter=',', fmt="%.6f")
+            np.savetxt('../out/cosine.csv', cosine, delimiter=',', fmt="%.6f")
 
-            #get 10 best results, save the indexes
-            euclidean_best = np.argsort(euclidean)[:10]
-            manhattan_best = np.argsort(manhattan)[:10]
-            cos_best = np.argsort(cos)[:10]
-            return euclidean_best, manhattan_best, cos_best
+            # 3.3 criar e guardar os rankings de similaridade
+            euclidean_ranking = np.argsort(euclidean)[:10]
+            manhattan_ranking = np.argsort(manhattan)[:10]
+            cosine_ranking = np.argsort(cosine)[:10]
+            
+            with open('../out/rankings.txt', 'w') as f:
+                f.write(f"Ranking: Euclidean-------------\n{euclidean_ranking}\n\n")
+                f.write(f"Ranking: Manhattan-------------\n{manhattan_ranking}\n\n")
+                f.write(f"Ranking: Cosine-------------\n{cosine_ranking}\n")
     
 if __name__ == "__main__":
     plt.close('all')
     # 2.1
     not_norm_feats, norm_feats = features()
     # 3
-    '''
-    norm_feats = np.loadtxt('../assets/validação de resultados_TP2/FM_All.csv', delimiter=',')
-    print(norm_feats)
-    distances(norm_feats)'''
+    #norm_feats = np.loadtxt('../assets/validação de resultados_TP2/FM_All.csv', delimiter=',')
+    calc_similarity(norm_feats)
