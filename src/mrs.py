@@ -219,7 +219,7 @@ if __name__ == "__main__":
     # 3
     data_array = []
 
-    with open('../assets/validação de resultados_TP2/FM_All.csv', 'r') as file:
+    with open('../out/norm_feats', 'r') as file:
         for line in file:
             line_array = np.genfromtxt(line.strip().split(','), delimiter=',')
 
