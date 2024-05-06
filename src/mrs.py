@@ -214,8 +214,15 @@ def calc_similarity(norm_feats):
     
 if __name__ == "__main__":
     plt.close('all')
-    # 2.1
-    not_norm_feats, norm_feats = features()
+    # 2
+    #not_norm_feats, norm_feats = features()
     # 3
-    #norm_feats = np.loadtxt('../out/norm_feats.csv', delimiter=',')
-    calc_similarity(norm_feats)
+    data_array = []
+
+    with open('../assets/validação de resultados_TP2/FM_All.csv', 'r') as file:
+        for line in file:
+            line_array = np.genfromtxt(line.strip().split(','), delimiter=',')
+
+            data_array.append(line_array)
+    
+    norm_feats = np.array(data_array)
