@@ -219,10 +219,10 @@ if __name__ == "__main__":
     # 3
     data_array = []
 
-    with open('../out/norm_feats', 'r') as file:
+    with open('../out/norm_feats.csv', 'r') as file:
         for line in file:
             line_array = np.genfromtxt(line.strip().split(','), delimiter=',')
 
             data_array.append(line_array)
     
-    norm_feats = np.array(data_array)
+    calc_similarity(data_array)
