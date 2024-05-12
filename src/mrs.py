@@ -8,9 +8,13 @@ import matplotlib.pyplot as plt
 import os
 from scipy.stats import skew, kurtosis
 import numpy.fft
-from scipy.spatial import distance
 
 audio_folder = "../MER_audio_taffc_dataset/songs"
+top10_songs_similarity = []
+euclidean_song = []
+manhattan_song = []
+cosine_song = []
+filenames = [i.split('.')[0] for i in os.listdir('../MER_audio_taffc_dataset/songs')]
 
 # 2.1.1
 def extract_features(file_path):        
@@ -133,20 +137,19 @@ def manual_centroid(filename):
     sc = np.zeros((len(y)-n_fft+1)//hop_length + 1)
     counter= 0
     df=sr/n_fft
-    #freq=0,10,20,30,...
     freqs = np.arange(0, sr/2 + df, df)
-    #hann window
+    # hann window
     yw = np.hanning(n_fft)
     for i in range(0, len(y) - n_fft + 1, hop_length):
-        #FFT
+        # fft
         yf = np.fft.rfft(y[i:i+n_fft]*yw)
-        #Espectro de potencia
+        # espectro de potencia
         magnitudes = np.abs(yf)
-        #SC
+        # sc
         if np.sum(magnitudes)==0:
             sc[counter]=(0)
         else:
-            sc[counter]=(np.sum(magnitudes*freqs)/np.sum(magnitudes))# se denominador for 0 centroid=0
+            sc[counter]=(np.sum(magnitudes*freqs)/np.sum(magnitudes))
         counter+=1
     librosa_sc=librosa.feature.spectral_centroid(y = y)[0][2:len(sc)+2]
 
@@ -203,26 +206,155 @@ def calc_similarity(norm_feats):
             np.savetxt('../out/cosine.csv', cosine, delimiter=',', fmt="%.6f")
 
             # 3.3 criar e guardar os rankings de similaridade
-            euclidean_ranking = np.sort(euclidean)[:10]
-            manhattan_ranking = np.sort(manhattan)[:10]
-            cosine_ranking = np.sort(cosine)[:10]
+            euclidean_ranking = np.sort(euclidean)[1:11]
+            manhattan_ranking = np.sort(manhattan)[1:11]
+            cosine_ranking = np.sort(cosine)[1:11]
+            
+            for i in range(10):
+                euclidean_song.append(filenames[np.argsort(euclidean)[1:11][i]])
+                manhattan_song.append(filenames[np.argsort(manhattan)[1:11][i]])
+                cosine_song.append(filenames[np.argsort(cosine)[1:11][i]])
             
             with open('../out/rankings.txt', 'w') as f:
-                f.write(f"Ranking: Euclidean-------------\n{euclidean_ranking}\n\n")
-                f.write(f"Ranking: Manhattan-------------\n{manhattan_ranking}\n\n")
-                f.write(f"Ranking: Cosine-------------\n{cosine_ranking}\n")
+                f.write(f"Ranking: Euclidean-------------\n{euclidean_song}\n\n{euclidean_ranking}\n\n")
+                f.write(f"Ranking: Manhattan-------------\n{manhattan_song}\n\n{manhattan_ranking}\n\n")
+                f.write(f"Ranking: Cosine-------------\n{cosine_song}\n\n{cosine_ranking}\n\n")
+                
+#4.1
+def metadata_precision():
+    categories = 0
+    cat_indexes = []
+    data_array = []
+    query_data = []
+    artists = []
+    moods = []
+    genres = []
+    quality_points = []
+    top10_songs = []
+    top10_values = []
     
+    with open('../assets/query_metadata.csv', 'r') as file:
+        count = 0
+        for line in file:
+            if count != 0:
+                query_data = line.strip().split(',')
+                query_data = np.array(query_data)
+    
+                #top10_songs.append(query_data[0])
+                num_query = len(query_data[1].split(';'))
+                num_query += len(query_data[9].split(';'))
+                num_query += len(query_data[11].split(';'))
+                
+            count += 1
+        #top10_values.append(str(num_query))
+    
+    with open('../assets/panda_dataset_taffc_metadata.csv', 'r') as file:
+        for line in file:
+            line_array = line.strip().split(',')
+            line_array = np.array(line_array)
+            data_array.append(line_array)
+            if categories == 0:
+                count = 0
+                for word in line_array:
+                    if (word == '"Artist"') or (word == '"MoodsStrSplit"') or (word ==  '"GenresStr"'):
+                        cat_indexes.append(count)
+                    count += 1
+                categories = 1
+    
+    with open('../out/mdSim.csv', 'w') as output_file:
+        count = 0
+        for array in data_array:
+            if count == 0:
+                count = 1
+                continue
+            
+            quality_point = 0
+            
+            artists = array[cat_indexes[0]].split(';')
+            for i in range(len(artists)):
+                posicao = -1
+                artists[i] = artists[i].replace('"', '')
+                posicao = artists[i].find(' ')
+                if posicao == 0:
+                    artists[i] = artists[i][posicao+1:]
+                    
+            for artist in artists:
+                if artist in query_data[cat_indexes[0]]:
+                    quality_point += 1
+                
+            moods = array[cat_indexes[1]].split(';')
+            for i in range(len(moods)):
+                posicao = -1
+                moods[i] = moods[i].replace('"', '')
+                posicao = moods[i].find(' ')
+                if posicao == 0:
+                    moods[i] = moods[i][posicao+1:]          
+                    
+            for mood in moods:
+                if mood in query_data[cat_indexes[1]]:
+                    quality_point += 1
+                
+            genres = array[cat_indexes[2]].split(';')
+            for i in range(len(genres)):
+                posicao = -1
+                genres[i] = genres[i].replace('"', '')
+                posicao = genres[i].find(' ')
+                if posicao == 0:
+                    genres[i] = genres[i][posicao+1:] 
+                
+            for genre in genres:
+                if genre in query_data[cat_indexes[2]]:
+                    quality_point += 1
+            
+            quality_points.append(quality_point)
+            output_file.write(str(quality_point) + '\n')
+            
+    maiores_10 = sorted(enumerate(quality_points), key=lambda x: x[1], reverse=True)[:11]
+    for i, (indice, valor) in enumerate(maiores_10):
+        top10_songs.append(data_array[indice+1][0])
+        top10_values.append(str(valor))
+    
+    with open('../out/rankings.txt', 'a') as file:
+        file.write('\nRanking: Metadata-------------\n[')
+        for song, value in zip(top10_songs, top10_values):
+            file.write(song + ' ')
+        file.write(']\n[')
+        for value in top10_values:
+            file.write(value + ' ')
+        file.write(']\n\n')
+        
+    #4.2
+    prec_euclidean = 0
+    prec_manhattan = 0
+    prec_cosine = 0
+    
+    for i in range(10):
+        for j in range(10):
+            if euclidean_song[j] in top10_songs[i+1]:
+                prec_euclidean += 10
+            if manhattan_song[j] in top10_songs[i+1]:
+                prec_manhattan += 10
+            if cosine_song[j] in top10_songs[i+1]:
+                prec_cosine += 10
+
+                
+    with open('../out/rankings.txt', 'a') as file:
+        file.write('Precision de: ' + str(prec_euclidean) + '\n')
+        file.write('Precision dm: ' + str(prec_manhattan) + '\n')
+        file.write('Precision dc: ' + str(prec_cosine) + '\n')
+        
+        
 if __name__ == "__main__":
     plt.close('all')
     # 2
-    #not_norm_feats, norm_feats = features()
+    not_norm_feats, norm_feats = features()
     # 3
     data_array = []
 
     with open('../out/norm_feats.csv', 'r') as file:
         for line in file:
             line_array = np.genfromtxt(line.strip().split(','), delimiter=',')
-
             data_array.append(line_array)
     
     calc_similarity(data_array)
+    metadata_precision()
